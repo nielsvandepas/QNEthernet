@@ -156,7 +156,7 @@ extern void *ram_heap;
 // TCP options
 // #define LWIP_TCP                   1
 // #define TCP_TTL                    IP_DEFAULT_TTL
-// #define TCP_WND                    (4 * TCP_MSS)
+#define TCP_WND                    (16 * TCP_MSS)
 // #define TCP_MAXRTX                 12
 // #define TCP_SYNMAXRTX              6
 // #define TCP_QUEUE_OOSEQ            LWIP_TCP
@@ -187,8 +187,18 @@ extern void *ram_heap;
 // #define LWIP_WND_SCALE             0
 // #define TCP_RCV_SCALE              0
 // #define LWIP_TCP_PCB_NUM_EXT_ARGS  0
-// #define LWIP_ALTCP                 0
-// #define LWIP_ALTCP_TLS             0
+
+// #define USE_TLS
+#ifdef USE_TLS
+#define LWIP_ALTCP                 1
+#define LWIP_ALTCP_TLS             1
+#define LWIP_ALTCP_TLS_MBEDTLS     1
+#else
+#define LWIP_ALTCP                 0
+#define LWIP_ALTCP_TLS             0
+#define LWIP_ALTCP_TLS_MBEDTLS     0
+#define altcp_get_port(pcb, local) ((local) ? ((pcb)->local_port) : ((pcb)->remote_port))
+#endif
 
 // Pbuf options
 #define PBUF_LINK_HLEN (14 + ETH_PAD_SIZE)
@@ -344,7 +354,7 @@ extern void *ram_heap;
 #define LWIP_HOOK_FILENAME "lwip_hooks.h"
 
 // Debugging options
-// #define LWIP_DEBUG
+#define LWIP_DEBUG
 // #define LWIP_DBG_MIN_LEVEL              LWIP_DBG_LEVEL_ALL
 // #define LWIP_DBG_TYPES_ON               LWIP_DBG_ON
 // #define ETHARP_DEBUG                    LWIP_DBG_OFF

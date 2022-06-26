@@ -13,7 +13,7 @@
 
 #include "ConnectionHolder.h"
 #include "lwip/ip_addr.h"
-#include "lwip/tcp.h"
+#include "lwip/altcp.h"
 
 namespace qindesign {
 namespace network {
@@ -27,11 +27,15 @@ class ConnectionManager final {
   }
 
   std::shared_ptr<ConnectionHolder> connect(const ip_addr_t *ipaddr,
-                                            uint16_t port);
+                                            uint16_t port, bool tls);
 
   // Listens on a port. The `reuse` parameter controls the SO_REUSEADDR flag.
   // This returns whether the attempt was successful.
   bool listen(uint16_t port, bool reuse);
+  #ifdef USE_TLS
+  bool listen(uint16_t port, bool reuse, uint8_t *cert, size_t certLength,
+              uint8_t *key, size_t keyLength, uint8_t *password, size_t passwordLength);
+  #endif
 
   bool isListening(uint16_t port) const;
 
@@ -62,18 +66,23 @@ class ConnectionManager final {
   ConnectionManager() = default;
   ~ConnectionManager() = default;
 
-  static err_t connectedFunc(void *arg, struct tcp_pcb *tpcb, err_t err);
+  #ifndef USE_TLS
+  bool listen(uint16_t port, bool reuse, uint8_t *cert, size_t certLength,
+              uint8_t *key, size_t keyLength, uint8_t *password, size_t passwordLength);
+  #endif
+
+  static err_t connectedFunc(void *arg, struct altcp_pcb *tpcb, err_t err);
   static void errFunc(void *arg, err_t err);
-  static err_t recvFunc(void *arg, struct tcp_pcb *tpcb, struct pbuf *p,
+  static err_t recvFunc(void *arg, struct altcp_pcb *tpcb, struct pbuf *p,
                         err_t err);
-  static err_t acceptFunc(void *arg, struct tcp_pcb *newpcb, err_t err);
+  static err_t acceptFunc(void *arg, struct altcp_pcb *newpcb, err_t err);
 
   // Adds a created connection to the list. It is expected that the object is
   // already set up.
   void addConnection(const std::shared_ptr<ConnectionHolder> &holder);
 
   std::vector<std::shared_ptr<ConnectionHolder>> connections_;
-  std::vector<struct tcp_pcb *> listeners_;
+  std::vector<struct altcp_pcb *> listeners_;
 
   friend class EthernetServer;
 };

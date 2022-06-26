@@ -18,9 +18,31 @@ namespace network {
 
 EthernetServer::EthernetServer(uint16_t port)
     : port_(port),
-      listening_(false) {}
+      listening_(false),
+      tls_(false) {}
+
+EthernetServer::EthernetServer(uint16_t port, bool tls)
+    : port_(port),
+      listening_(false),
+      tls_(tls),
+      cert(nullptr),
+      key(nullptr),
+      password(nullptr) {}
 
 EthernetServer::~EthernetServer() {
+}
+
+void EthernetServer::setSigning(uint8_t *cert, size_t certLength, uint8_t *key, size_t keyLength, uint8_t *password, size_t passwordLength) {
+  if (!tls_) {
+    return;
+  }
+
+  this->cert = cert;
+  this->certLength = certLength;
+  this->key = key;
+  this->keyLength = keyLength;
+  this->password = password;
+  this->passwordLength;
 }
 
 void EthernetServer::begin() {
@@ -28,7 +50,15 @@ void EthernetServer::begin() {
 }
 
 void EthernetServer::begin(bool reuse) {
-  listening_ = internal::ConnectionManager::instance().listen(port_, reuse);
+  if (tls_) {
+    if (!cert || !key) {
+      return;
+    }
+
+    listening_ = internal::ConnectionManager::instance().listen(port_, reuse, cert, certLength, key, keyLength, password, passwordLength);
+  } else {
+    listening_ = internal::ConnectionManager::instance().listen(port_, reuse);
+  }
 }
 
 bool EthernetServer::end() const {

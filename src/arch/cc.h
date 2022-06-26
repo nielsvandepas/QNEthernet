@@ -9,4 +9,7 @@
 
 #define LWIP_RAND() ((u32_t)rand())
 
+#include "lwiplog.h"
+#define LWIP_PLATFORM_DIAG(x) do {lwip_log x;} while(0)
+
 #endif  // LWIPTEENSY_ARCH_CC_H_

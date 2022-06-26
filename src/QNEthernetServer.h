@@ -19,6 +19,9 @@ namespace network {
 class EthernetServer final : public Server {
  public:
   EthernetServer(uint16_t port);
+  #ifdef USE_TLS
+  EthernetServer(uint16_t port, bool tls);
+  #endif
   ~EthernetServer();
 
   // Returns the maximum number of TCP listeners.
@@ -30,6 +33,10 @@ class EthernetServer final : public Server {
   uint16_t port() const {
     return port_;
   }
+
+  #ifdef USE_TLS
+  void setSigning(uint8_t *cert, size_t certLength, uint8_t *key, size_t keyLength, uint8_t *password, size_t passwordLength);
+  #endif
 
   // Starts listening on the server port. This calls begin(false).
   void begin() override;
@@ -60,6 +67,13 @@ class EthernetServer final : public Server {
  private:
   const uint16_t port_;
   bool listening_;
+  const bool tls_;
+  uint8_t *cert;
+  size_t certLength;
+  uint8_t *key;
+  size_t keyLength;
+  uint8_t *password;
+  size_t passwordLength;
 };
 
 }  // namespace network

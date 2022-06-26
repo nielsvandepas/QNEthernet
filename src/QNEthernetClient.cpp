@@ -18,7 +18,7 @@
 #include "lwip/dns.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
-#include "lwip/tcp.h"
+#include "lwip/altcp.h"
 #include "util/PrintUtils.h"
 #include "util/ip_tools.h"
 
@@ -45,23 +45,31 @@ EthernetClient::~EthernetClient() {
 // --------------------------------------------------------------------------
 
 int EthernetClient::connect(IPAddress ip, uint16_t port) {
+  return connect(ip, port, false);
+}
+
+int EthernetClient::connect(IPAddress ip, uint16_t port, bool tls) {
   ip_addr_t ipaddr IPADDR4_INIT(get_uint32(ip));
-  return connect(&ipaddr, port);
+  return connect(&ipaddr, port, tls);
 }
 
 int EthernetClient::connect(const char *host, uint16_t port) {
+  return connect(host, port, false);
+}
+
+int EthernetClient::connect(const char *host, uint16_t port, bool tls) {
   IPAddress ip;
   if (!DNSClient::getHostByName(host, ip, kDNSLookupTimeout)) {
     return false;
   }
-  return connect(ip, port);
+  return connect(ip, port, tls);
 }
 
-bool EthernetClient::connect(const ip_addr_t *ipaddr, uint16_t port) {
+bool EthernetClient::connect(const ip_addr_t *ipaddr, uint16_t port, bool tls) {
   // First close any existing connection
   stop();
 
-  conn_ = internal::ConnectionManager::instance().connect(ipaddr, port);
+  conn_ = internal::ConnectionManager::instance().connect(ipaddr, port, tls);
   if (conn_ == nullptr) {
     return false;
   }
@@ -118,7 +126,7 @@ void EthernetClient::setNoDelay(bool flag) {
   if (state == nullptr) {
     return;
   }
-  state->pcb->flags |= TF_NODELAY;
+  // state->pcb->flags |= TF_NODELAY;
 }
 
 bool EthernetClient::isNoDelay() {
@@ -129,7 +137,8 @@ bool EthernetClient::isNoDelay() {
   if (state == nullptr) {
     return false;
   }
-  return ((state->pcb->flags & TF_NODELAY) != 0);
+  // return ((state->pcb->flags & TF_NODELAY) != 0);
+  return true;
 }
 
 void EthernetClient::stop() {
@@ -155,13 +164,13 @@ void EthernetClient::close(bool wait) {
 
   if (conn_->connected) {
     // First try to flush any data
-    tcp_output(state->pcb);
+    altcp_output(state->pcb);
     EthernetClass::loop();  // Maybe some TCP data gets in
     // NOTE: loop() requires a re-check of the state
 
     if (state != nullptr) {
-      if (tcp_close(state->pcb) != ERR_OK) {
-        tcp_abort(state->pcb);
+      if (altcp_close(state->pcb) != ERR_OK) {
+        altcp_abort(state->pcb);
       } else if (wait) {
         elapsedMillis timer;
         while (conn_->connected && timer < connTimeout_) {
@@ -185,12 +194,12 @@ void EthernetClient::closeOutput() {
   }
 
   // First try to flush any data
-  tcp_output(state->pcb);
+  altcp_output(state->pcb);
   EthernetClass::loop();  // Maybe some TCP data gets in
   // NOTE: loop() requires a re-check of the state
 
   if (state != nullptr) {
-    tcp_shutdown(state->pcb, 0, 1);
+    altcp_shutdown(state->pcb, 0, 1);
   }
 }
 
@@ -203,7 +212,7 @@ uint16_t EthernetClient::localPort() {
   if (state == nullptr) {
     return 0;
   }
-  return state->pcb->local_port;
+  return altcp_get_port(state->pcb, 1);
 }
 
 IPAddress EthernetClient::remoteIP() {
@@ -215,7 +224,8 @@ IPAddress EthernetClient::remoteIP() {
   if (state == nullptr) {
     return INADDR_NONE;
   }
-  return ip_addr_get_ip4_uint32(&state->pcb->remote_ip);
+
+  return ip_addr_get_ip4_uint32(altcp_get_ip(state->pcb, 0));
 }
 
 uint16_t EthernetClient::remotePort() {
@@ -227,7 +237,7 @@ uint16_t EthernetClient::remotePort() {
   if (state == nullptr) {
     return 0;
   }
-  return state->pcb->remote_port;
+  return altcp_get_port(state->pcb, 0);
 }
 
 // --------------------------------------------------------------------------
@@ -264,15 +274,15 @@ size_t EthernetClient::write(uint8_t b) {
     return 0;
   }
 
-  size_t sndBufSize = tcp_sndbuf(state->pcb);
+  size_t sndBufSize = altcp_sndbuf(state->pcb);
   if (sndBufSize == 0) {  // Possibly flush if there's no space
-    tcp_output(state->pcb);
-    sndBufSize = tcp_sndbuf(state->pcb);
+    altcp_output(state->pcb);
+    sndBufSize = altcp_sndbuf(state->pcb);
   }
 
   size_t written = 0;
   if (sndBufSize >= 1) {
-    if (tcp_write(state->pcb, &b, 1, TCP_WRITE_FLAG_COPY) == ERR_OK) {
+    if (altcp_write(state->pcb, &b, 1, TCP_WRITE_FLAG_COPY) == ERR_OK) {
       written = 1;
     }
   }
@@ -295,14 +305,14 @@ size_t EthernetClient::write(const uint8_t *buf, size_t size) {
     return 0;
   }
 
-  size_t sndBufSize = tcp_sndbuf(state->pcb);
+  size_t sndBufSize = altcp_sndbuf(state->pcb);
   if (sndBufSize == 0) {  // Possibly flush if there's no space
-    tcp_output(state->pcb);
-    sndBufSize = tcp_sndbuf(state->pcb);
+    altcp_output(state->pcb);
+    sndBufSize = altcp_sndbuf(state->pcb);
   }
   size = std::min(size, sndBufSize);
   if (size > 0) {
-    if (tcp_write(state->pcb, buf, size, TCP_WRITE_FLAG_COPY) != ERR_OK) {
+    if (altcp_write(state->pcb, buf, size, TCP_WRITE_FLAG_COPY) != ERR_OK) {
       size = 0;
     }
   }
@@ -321,8 +331,8 @@ int EthernetClient::availableForWrite() {
   }
 
   // Maybe flush
-  if (tcp_sndbuf(state->pcb) == 0) {
-    tcp_output(state->pcb);
+  if (altcp_sndbuf(state->pcb) == 0) {
+    altcp_output(state->pcb);
   }
 
   EthernetClass::loop();  // Loop to allow incoming TCP data
@@ -330,7 +340,7 @@ int EthernetClient::availableForWrite() {
   if (state == nullptr) {
     return 0;
   }
-  return tcp_sndbuf(state->pcb);
+  return altcp_sndbuf(state->pcb);
 }
 
 void EthernetClient::flush() {
@@ -342,7 +352,7 @@ void EthernetClient::flush() {
     return;
   }
 
-  tcp_output(state->pcb);
+  altcp_output(state->pcb);
   EthernetClass::loop();  // Loop to allow incoming TCP data
 }
 

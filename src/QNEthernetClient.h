@@ -45,6 +45,10 @@ class EthernetClient final : public Client {
 
   int connect(IPAddress ip, uint16_t port) override;
   int connect(const char *host, uint16_t port) override;
+  #ifdef USE_TLS
+  int connect(IPAddress ip, uint16_t port, bool tls);
+  int connect(const char *host, uint16_t port, bool tls);
+  #endif
 
   uint8_t connected() override;
   operator bool() override;
@@ -109,7 +113,11 @@ class EthernetClient final : public Client {
   EthernetClient(std::shared_ptr<internal::ConnectionHolder> holder);
 
   // ip_addr_t version of connect() function.
-  bool connect(const ip_addr_t *ipaddr, uint16_t port);
+  bool connect(const ip_addr_t *ipaddr, uint16_t port, bool tls);
+  #ifndef USE_TLS
+  int connect(IPAddress ip, uint16_t port, bool tls);
+  int connect(const char *host, uint16_t port, bool tls);
+  #endif
 
   // Closes the connection. The `wait` parameter indicates whether to wait for
   // close or timeout. Set to true to wait and false to not wait. stop() calls
